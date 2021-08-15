@@ -8,10 +8,11 @@ pub const STATE_COUNT: usize = 1 << BLOCK_SIZE;
 pub const MASK: usize = STATE_COUNT - 1;
 const RNG_SEED: u64 = 1;
 
+
 pub fn generate_transition_function_table() -> ([u64; STATE_COUNT], [u64; STATE_COUNT]) {
     let mut rng = Pcg64::seed_from_u64(RNG_SEED);
 
-    let mut m = 1;
+    let mut m: u64 = 1;
     let mut transition_function_table: [u64; STATE_COUNT] = [0; STATE_COUNT];
     let mut reverse_table: [u64; STATE_COUNT] = [0; STATE_COUNT];
 
@@ -23,7 +24,7 @@ pub fn generate_transition_function_table() -> ([u64; STATE_COUNT], [u64; STATE_
 
         for j in 0..STATE_COUNT {
             let random_value: usize = rng.gen::<usize>() % (STATE_COUNT - j);
-            transition_function_table[j] += m * temp_values[random_value];
+            transition_function_table[j] = transition_function_table[j].wrapping_add(m * temp_values[random_value] as u64);
             if m == 1 {
                 reverse_table[temp_values[random_value] as usize] = j as u64;
             }
@@ -31,7 +32,6 @@ pub fn generate_transition_function_table() -> ([u64; STATE_COUNT], [u64; STATE_
         }
         m = m.wrapping_mul(STATE_COUNT as u64);
     }
-    
     (transition_function_table, reverse_table)
 }
 
@@ -102,10 +102,10 @@ impl SearchHistory {
 }
 
 fn encode((state, byte): (u64, u8), transition_fun_table: &[u64; STATE_COUNT]) -> (u64, u8) {
-    let new_state = (state ^ transition_fun_table[byte as usize]) as usize;
+    let new_state = state ^ transition_fun_table[byte as usize];
     (
-        new_state.rotate_right(BLOCK_SIZE as u32) as u64,
-        (new_state & MASK) as u8,
+        new_state.rotate_right(BLOCK_SIZE as u32),
+        new_state as u8,
     )
 }
 

@@ -31,7 +31,6 @@ fn load_probabilities(image: &GrayImage, start_x: u32, start_y: u32) -> Vec<f32>
         // These will be later passed to logarithm - prevent log 0 by scaling
         probabilities[i as usize] = ((pixel.0[0] as f32) / 256.0 + 0.0001) * 0.9998;
     }
-    println!("{:?}", probabilities);
     probabilities
 }
 
@@ -42,7 +41,6 @@ fn calculate_weights(probabilities: &Vec<f32>, step: usize) -> (Vec<f32>, Vec<f3
         zero_bit_weights[i] = -(1.0 - probabilities[8 * step + i]).ln();
         one_bit_weights[i] = -(probabilities[8 * step + i]).ln();
     }
-    println!("{:?} {:?} -- {}", zero_bit_weights, one_bit_weights, step);
 
     (zero_bit_weights, one_bit_weights)
 }
@@ -145,11 +143,12 @@ fn encode(
 
     let mut encoded_message = vec![];
 
+
     if let Some(last_node) = maybe_last_node {
         encoded_message.push(last_node.encoded_byte);
         println!("{:?}", last_node);
         let mut maybe_next_index = last_node.parent_index;
-        for _ in 0..encoding_byte_size {
+        for _ in 1..encoding_byte_size {
             if let Some(next_index) = maybe_next_index {
                 let node = search_history.get(next_index);
                 encoded_message.push(node.encoded_byte);
@@ -160,6 +159,7 @@ fn encode(
         }
         encoded_message.reverse();
     }
+    println!("message = {:?}", &encoded_message);
 
     Ok(encoded_message)
 }
@@ -194,19 +194,19 @@ fn decode(image: &GrayImage, freedom_bit_count: u8) -> Vec<u8> {
 
         if encoded_bit_pos == 8 {
             print!("{} ", byte);
-            let index = (byte ^ state as u8) & (MASK as u8);
-            let decoded_byte: u8 = r_table[index as usize] as u8;
+            let index = (byte ^ state) as usize & MASK;
+            let decoded_byte = r_table[index];
             let new_state = state ^ t_table[decoded_byte as usize];
             state = new_state.rotate_right(BLOCK_SIZE as u32);
 
             byte = 0;
             encoded_bit_pos = 0;
 
-            // Write remaining bits too
+            // TODO: Write remaining bits too
             for i in freedom_bit_count..8 {
                 let byte_index = current_bit / 8;
                 let bit_index = current_bit % 8;
-                decoded[byte_index] = decoded[byte_index] | (((decoded_byte >> i) & 1) << bit_index);
+                decoded[byte_index] = decoded[byte_index] | (((decoded_byte as u8 >> i) & 1) << bit_index);
                 current_bit += 1;
             }
         };
@@ -217,7 +217,7 @@ fn decode(image: &GrayImage, freedom_bit_count: u8) -> Vec<u8> {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let image = ImageReader::open("picture.bmp")?.decode()?;
-    let text = r#"
+    let text = r#"twoja stara
     Imagine a basic situation: we have a source of symbols of known probability distribution and we would like to design an entropy coder transforming it into a bit sequence, which would be simple and very close to the capacity (Shannon entropy). Prefix codes are the basic method, defining "symbol$\rightarrow$bit sequence" set of rules, usually found using Huffman algorithm. They theoretically allow to reduce the distance from the capacity ($\Delta H$) down to zero, but the cost grows rapidly. We will discuss improving it by replacing this memoryless coder with an automate having some small set of internal states: defined by "(symbol, state)$\rightarrow$(bit sequence, new state)" set of rules. The natural question is the minimal number of states to achieve given performance, what is especially important for simple high throughput hardware coders. Arithmetic coding can be seen this way, but it requires relatively large number of states (possible ranges). We will discuss asymmetric numeral systems (ANS) for this purpose, which can be seen as asymmetrization of numeral systems. Less than 20 states will be usually sufficient to achieve $\Delta H\approx 0.001$ bits/symbol for a small alphabet. $\Delta H$ generally decreases approximately like 1/(the number of states$)^{2}$ and increases proportionally to the size of alphabet. Huge freedom of choosing the exact coding and chaotic behavior of state make it also perfect to simultaneously encrypt the data.
 \end{abstract}
 \section{Introduction}
@@ -231,14 +231,16 @@ Electronics we use is usually based on the binary numeral system, which is perfe
 
     let result = encode(&image.to_luma8(), &text.as_bytes().to_vec(), 2);
     if let Ok(seq) = &result {
-        println!("{:?}", seq);
         let (width, height) = image.dimensions();
         let mut new_image: GrayImage = ImageBuffer::new(width, height);
 
         let mut x_pos = 50;
         let mut y_pos = 50;
-        let mut current_bit = 0;
+        let mut current_bit: usize = 0;
         for i in 0..(width * height) {
+            if current_bit / 8 >= get_image_bytes_encoding_size(&new_image) as usize {
+                break
+            }
             // TODO: Why is this needed?
             if i % width == 0 {
                 x_pos += 1;
@@ -253,7 +255,7 @@ Electronics we use is usually based on the binary numeral system, which is perfe
             current_bit += 1;
             new_image.put_pixel(x_pos, y_pos, pixel);
         }
-        new_image.save("codee.bmp").unwrap();
+        new_image.save("code.bmp").unwrap();
     }
     println!("{:?}", String::from_utf8_lossy(&decode(&ImageReader::open("code.bmp")?.decode()?.to_luma8(), 2)));
 
