@@ -1,9 +1,11 @@
+use std::usize;
+
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64;
 
 pub const BLOCK_SIZE: u8 = 8;
 pub const STATE_COUNT: usize = 1 << BLOCK_SIZE;
-pub const MASK: u8 = BLOCK_SIZE - 1;
+pub const MASK: usize = STATE_COUNT - 1;
 const RNG_SEED: u64 = 1;
 
 pub fn generate_transition_function_table() -> ([u64; STATE_COUNT], [u64; STATE_COUNT]) {
@@ -63,6 +65,7 @@ impl SearchHistory {
 
     fn get_encoding_node(&self, node: &SearchNode, byte: u8) -> SearchNode {
         let (new_state, encoded_byte) = encode((node.state, byte), &self.transition_fun_table);
+        
         SearchNode::new(
             Some(self.selected_node),
             encoded_byte,
@@ -99,10 +102,10 @@ impl SearchHistory {
 }
 
 fn encode((state, byte): (u64, u8), transition_fun_table: &[u64; STATE_COUNT]) -> (u64, u8) {
-    let new_state = state ^ transition_fun_table[byte as usize];
+    let new_state = (state ^ transition_fun_table[byte as usize]) as usize;
     (
-        new_state.rotate_right(BLOCK_SIZE as u32),
-        (new_state as u8) & MASK,
+        new_state.rotate_right(BLOCK_SIZE as u32) as u64,
+        (new_state & MASK) as u8,
     )
 }
 

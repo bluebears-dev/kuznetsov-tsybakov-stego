@@ -194,7 +194,7 @@ fn decode(image: &GrayImage, freedom_bit_count: u8) -> Vec<u8> {
 
         if encoded_bit_pos == 8 {
             print!("{} ", byte);
-            let index = (byte ^ state as u8) & MASK;
+            let index = (byte ^ state as u8) & (MASK as u8);
             let decoded_byte: u8 = r_table[index as usize] as u8;
             let new_state = state ^ t_table[decoded_byte as usize];
             state = new_state.rotate_right(BLOCK_SIZE as u32);
@@ -202,10 +202,11 @@ fn decode(image: &GrayImage, freedom_bit_count: u8) -> Vec<u8> {
             byte = 0;
             encoded_bit_pos = 0;
 
+            // Write remaining bits too
             for i in freedom_bit_count..8 {
                 let byte_index = current_bit / 8;
                 let bit_index = current_bit % 8;
-                decoded[byte_index] = decoded[byte_index] | ((decoded_byte >> i) & 1) << bit_index;
+                decoded[byte_index] = decoded[byte_index] | (((decoded_byte >> i) & 1) << bit_index);
                 current_bit += 1;
             }
         };
@@ -252,9 +253,9 @@ Electronics we use is usually based on the binary numeral system, which is perfe
             current_bit += 1;
             new_image.put_pixel(x_pos, y_pos, pixel);
         }
-        new_image.save("coded.png").unwrap();
+        new_image.save("codee.bmp").unwrap();
     }
-    println!("{:?}", String::from_utf8_lossy(&decode(&ImageReader::open("coded.png")?.decode()?.to_luma8(), 2)));
+    println!("{:?}", String::from_utf8_lossy(&decode(&ImageReader::open("code.bmp")?.decode()?.to_luma8(), 2)));
 
     Ok(())
 }
