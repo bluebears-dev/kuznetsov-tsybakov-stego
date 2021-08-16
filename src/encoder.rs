@@ -1,6 +1,6 @@
 mod kt_search_tree;
 
-use bit_vec::BitVec;
+use bitvec::prelude::*;
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64;
 
@@ -116,7 +116,7 @@ impl KTEncoder for StandardKTEncoder {
         freedom_bit_count: u8,
     ) -> Vec<u8> {
         let bit_capacity = encoding_capacity as usize * 8 ;
-        let mut decoded_bits = BitVec::from_elem(bit_capacity, false);
+        let mut message_bits: BitVec<Lsb0, u8> = bitvec![Lsb0, u8; 0; bit_capacity];
 
         let mut state = 0;
         let mut bit_position: usize = 0;
@@ -124,16 +124,16 @@ impl KTEncoder for StandardKTEncoder {
             let (decoded_byte, new_state) = self.decode_byte(*byte, state);
             state = new_state;
 
-            let decoded_bit_vec = BitVec::from_bytes(&[decoded_byte]);
-            for i in 0..8 - freedom_bit_count {
+            let decoded_bits = decoded_byte.view_bits::<Lsb0>();
+            for i in freedom_bit_count..8 {
                 if bit_position >= bit_capacity {
                     break;
                 }
-                decoded_bits.set(bit_position, decoded_bit_vec.get(i.into()).unwrap());
+                message_bits.set(bit_position, decoded_bits[i as usize]);
                 bit_position += 1;
             }
         };
 
-        decoded_bits.to_bytes()
+        message_bits.into()
     }
 }

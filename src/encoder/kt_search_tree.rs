@@ -1,6 +1,6 @@
 use std::usize;
 
-use bit_vec::{BitVec, Iter};
+use bitvec::{prelude::*, slice::Iter};
 
 use crate::encoder::KTEncoder;
 
@@ -29,7 +29,7 @@ impl<'a> SearchTree<'a> {
     }
 
     pub fn find_best_encoding(&mut self, message: &Vec<u8>) -> Vec<u8> {
-        let msg_bit_vec = BitVec::from_bytes(message);
+        let msg_bit_vec = message.view_bits::<Lsb0>();
         let maybe_last_node = self.construct_search_tree_approx(&mut msg_bit_vec.iter());
 
         let mut encoded_message: Vec<u8> = vec![];
@@ -57,7 +57,7 @@ impl<'a> SearchTree<'a> {
         encoded_message
     }
 
-    fn construct_search_tree_approx(&mut self, msg_bit_iterator: &mut Iter) -> Option<SearchNode> {
+    fn construct_search_tree_approx(&mut self, msg_bit_iterator: &mut Iter<Lsb0, u8>) -> Option<SearchNode> {
         let encoding_capacity = self.config.encoding_capacity;
         let freedom_bit_count = self.config.freedom_bit_count;
 
@@ -72,8 +72,8 @@ impl<'a> SearchTree<'a> {
 
             // Store `8 - freedom_bit_count` in MS positions in `bits_to_encode`
             let mut bits_to_encode = 0;
-            for i in (freedom_bit_count..8).rev() {
-                if let Some(bit) = msg_bit_iterator.next().map(|val| (val as u8) << i) {
+            for i in freedom_bit_count..8 {
+                if let Some(bit) = msg_bit_iterator.next().map(|val| (*val as u8) << i) {
                     bits_to_encode += bit;
                 }
             }
