@@ -4,23 +4,23 @@ use bit_vec::{BitVec, Iter};
 
 use crate::encoder::KTEncoder;
 
-pub type ByteEncodingCapacity = u64;
+use super::ByteEncodingCapacity;
 
-pub struct Config {
+pub struct Config<'a> {
     pub freedom_bit_count: u8,
-    pub probabilities: Vec<f32>,
+    pub probabilities: &'a Vec<f32>,
     pub encoding_capacity: ByteEncodingCapacity,
-    pub encoding_method: Box<dyn KTEncoder>,
+    pub encoding_method: &'a dyn KTEncoder,
 }
 
-pub struct SearchTree {
+pub struct SearchTree<'a> {
     search_history: Vec<SearchNode>,
-    config: Config,
+    config: &'a Config<'a>,
     search_index: usize,
 }
 
-impl SearchTree {
-    pub fn new(config: Config) -> Self {
+impl<'a> SearchTree<'a> {
+    pub fn new(config: &'a Config) -> Self {
         SearchTree {
             search_history: vec![],
             search_index: 0,
@@ -124,7 +124,7 @@ impl SearchTree {
         weights: &ByteValueWeightArray,
         byte: u8,
     ) -> SearchNode {
-        let (encoded_byte, new_state) = self.config.encoding_method.encode(byte, node.state);
+        let (encoded_byte, new_state) = self.config.encoding_method.encode_byte(byte, node.state);
 
         SearchNode::new(
             Some(self.search_index),

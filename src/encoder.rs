@@ -1,13 +1,34 @@
+mod kt_search_tree;
+
+use bit_vec::BitVec;
 use rand::{Rng, SeedableRng};
 use rand_pcg::Pcg64;
+
+use self::kt_search_tree::{Config, SearchTree};
 
 pub const BLOCK_SIZE: u8 = 8;
 pub const STATE_COUNT: usize = 1 << BLOCK_SIZE;
 pub const MASK: usize = STATE_COUNT - 1;
+pub type ByteEncodingCapacity = u64;
 
 pub trait KTEncoder {
-    fn encode(&self, byte: u8, state: u64) -> (u8, u64);
-    fn decode(&self, byte: u8, state: u64) -> (u8, u64);
+    fn encode_byte(&self, byte: u8, state: u64) -> (u8, u64);
+    fn decode_byte(&self, byte: u8, state: u64) -> (u8, u64);
+
+    fn encode(
+        &self,
+        message: &Vec<u8>,
+        probabilities: &Vec<f32>,
+        encoding_capacity: ByteEncodingCapacity,
+        freedom_bit_count: u8,
+    ) -> Vec<u8>;
+
+    fn decode(
+        &self,
+        data: &Vec<u8>,
+        encoding_capacity: ByteEncodingCapacity,
+        freedom_bit_count: u8,
+    ) -> Vec<u8>;
 }
 
 pub struct StandardKTEncoder {
@@ -15,9 +36,7 @@ pub struct StandardKTEncoder {
     reverse_transition_function_table: Vec<u64>,
 }
 
-fn generate_transition_function_table(
-    seed: u64,
-) -> ([u64; STATE_COUNT], [u64; STATE_COUNT]) {
+fn generate_transition_function_table(seed: u64) -> ([u64; STATE_COUNT], [u64; STATE_COUNT]) {
     let mut rng = Pcg64::seed_from_u64(seed);
 
     let mut m: u64 = 1;
@@ -57,15 +76,64 @@ impl StandardKTEncoder {
 }
 
 impl KTEncoder for StandardKTEncoder {
-    fn encode(&self, byte: u8, state: u64) -> (u8, u64) {
+    fn encode_byte(&self, byte: u8, state: u64) -> (u8, u64) {
         let new_state = state ^ self.transition_function_table[byte as usize];
         (new_state as u8, new_state.rotate_right(BLOCK_SIZE as u32))
     }
 
-    fn decode(&self, byte: u8, state: u64) -> (u8, u64) {
+    fn decode_byte(&self, byte: u8, state: u64) -> (u8, u64) {
         let index = (byte as u64 ^ state) as usize & MASK;
         let decoded_byte = self.reverse_transition_function_table[index] as u64;
         let new_state = state ^ self.transition_function_table[decoded_byte as usize];
-        (decoded_byte as u8, new_state.rotate_right(BLOCK_SIZE as u32))
+        (
+            decoded_byte as u8,
+            new_state.rotate_right(BLOCK_SIZE as u32),
+        )
+    }
+
+    fn encode(
+        &self,
+        message: &Vec<u8>,
+        probabilities: &Vec<f32>,
+        encoding_capacity: ByteEncodingCapacity,
+        freedom_bit_count: u8,
+    ) -> Vec<u8> {
+        let config = Config {
+            probabilities,
+            encoding_capacity,
+            freedom_bit_count,
+            encoding_method: self,
+        };
+        let mut search_tree = SearchTree::new(&config);
+
+        search_tree.find_best_encoding(message)
+    }
+
+    fn decode(
+        &self,
+        data: &Vec<u8>,
+        encoding_capacity: ByteEncodingCapacity,
+        freedom_bit_count: u8,
+    ) -> Vec<u8> {
+        let bit_capacity = encoding_capacity as usize * 8 ;
+        let mut decoded_bits = BitVec::from_elem(bit_capacity, false);
+
+        let mut state = 0;
+        let mut bit_position: usize = 0;
+        for byte in data {
+            let (decoded_byte, new_state) = self.decode_byte(*byte, state);
+            state = new_state;
+
+            let decoded_bit_vec = BitVec::from_bytes(&[decoded_byte]);
+            for i in 0..8 - freedom_bit_count {
+                if bit_position >= bit_capacity {
+                    break;
+                }
+                decoded_bits.set(bit_position, decoded_bit_vec.get(i.into()).unwrap());
+                bit_position += 1;
+            }
+        };
+
+        decoded_bits.to_bytes()
     }
 }

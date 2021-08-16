@@ -1,109 +1,18 @@
-pub mod binary;
 mod encoder;
-mod kt_search_tree;
+mod image_encoder;
 
 extern crate image;
 
-use std::{error::Error, u32};
+use std::{error::Error};
 
-use bit_vec::BitVec;
-use encoder::StandardKTEncoder;
-use image::{io::Reader as ImageReader, GenericImageView, GrayImage, ImageBuffer, Luma};
-use kt_search_tree::{Config, SearchTree};
+use encoder::{KTEncoder, StandardKTEncoder};
+use image::{io::Reader as ImageReader, GenericImageView};
 
-use crate::encoder::KTEncoder;
+use image_encoder::ImageEncoder;
 
-const RNG_SEED: u64 = 5;
-
-fn get_image_bytes_encoding_size(image: &GrayImage) -> u64 {
-    let (width, height) = image.dimensions();
-    ((width * height) as f32 / 8.0).floor() as u64
-}
-
-fn load_probabilities(image: &GrayImage, start_x: u32, start_y: u32) -> Vec<f32> {
-    let (width, height) = image.dimensions();
-    let mut probabilities = vec![0.0; 10 + (width * height) as usize];
-
-    let mut x_pos = start_x;
-    let mut y_pos = start_y;
-    for i in 0..(width * height) {
-        // TODO: Why is this needed?
-        if i % width == 0 {
-            x_pos += 1;
-        }
-        x_pos = (x_pos + 19) % width;
-        y_pos = (y_pos + 29) % height;
-        let pixel = *image.get_pixel(x_pos, y_pos);
-        // These will be later passed to logarithm - prevent log 0 by scaling
-        probabilities[i as usize] = ((pixel.0[0] as f32) / 256.0 + 0.0001) * 0.9998;
-    }
-    probabilities
-}
-
-fn encode(image: &GrayImage, message: &Vec<u8>, freedom_bit_count: u8) -> Vec<u8> {
-    let probabilities = load_probabilities(image, 50, 50);
-    let encoding_capacity = get_image_bytes_encoding_size(image);
-
-    let mut search_tree = SearchTree::new(Config {
-        probabilities,
-        encoding_capacity,
-        freedom_bit_count,
-        encoding_method: Box::new(StandardKTEncoder::new(RNG_SEED)),
-    });
-
-    search_tree.find_best_encoding(message)
-}
-
-fn decode(image: &GrayImage, freedom_bit_count: u8) -> Vec<u8> {
-    let mut state: u64 = 0;
-
-    let decoder = StandardKTEncoder::new(RNG_SEED);
-
-    let mut x_pos = 50;
-    let mut y_pos = 50;
-    let mut current_bit = 0;
-    let (width, height) = image.dimensions();
-    let encoding_capacity = get_image_bytes_encoding_size(&image);
-
-    let mut decoded = BitVec::from_elem((encoding_capacity * 8) as usize, false);
-
-    let mut byte_bit_vec = BitVec::from_elem(8, false);
-    let mut encoded_bit_pos = 0;
-    for i in 0..(width * height) {
-        // TODO: Why is this needed?
-        if i % width == 0 {
-            x_pos += 1;
-        }
-        x_pos = (x_pos + 19) % width;
-        y_pos = (y_pos + 29) % height;
-
-        if image.get_pixel(x_pos, y_pos).0[0] > 128 {
-            byte_bit_vec.set(encoded_bit_pos, true);
-        }
-
-        encoded_bit_pos += 1;
-
-        if encoded_bit_pos == 8 {
-            let byte = byte_bit_vec.to_bytes()[0];
-            let (decoded_byte, new_state) = decoder.decode(byte, state);
-            state = new_state;
-
-            byte_bit_vec.set_all();
-            byte_bit_vec.negate();
-
-            encoded_bit_pos = 0;
-
-            // TODO: Write remaining bits too
-            let decoded_bit_vec = BitVec::from_bytes(&[decoded_byte]);
-            for i in 0..8 - freedom_bit_count {
-                decoded.set(current_bit, decoded_bit_vec.get(i.into()).unwrap());
-                current_bit += 1;
-            }
-        };
-    }
-
-    decoded.to_bytes()
-}
+use crate::image_encoder::{
+    get_image_encoding_capacity, modulo_traversing_encoder::ModuloTraversingEncoder,
+};
 
 fn main() -> Result<(), Box<dyn Error>> {
     let image = ImageReader::open("picture.bmp")?.decode()?;
@@ -118,48 +27,26 @@ Electronics we use is usually based on the binary numeral system, which is perfe
         \includegraphics{huffman.jpg}\
         \caption{Left: construction of Huffman coding while grouping two symbols from $(1,1,1)/3$ probability distribution: we have 
     "#;
+    let gray_image = &image.to_luma8();
+    let freedom_bit_count = 2;
+    let encoding_capacity = get_image_encoding_capacity(gray_image);
+    let probabilities = ModuloTraversingEncoder::get_probabilities(gray_image, 50, 50);
+    let coder = StandardKTEncoder::new(5);
 
-    let encoded_seq = encode(&image.to_luma8(), &text.as_bytes().to_vec(), 2);
-
-    let (width, height) = image.dimensions();
-    let mut new_image: GrayImage = ImageBuffer::new(width, height);
-
-    let mut x_pos = 50;
-    let mut y_pos = 50;
-
-    let message_bit_vec = BitVec::from_bytes(&encoded_seq);
-
-    for i in 0..(width * height) as u64 {
-        if i / 8 >= get_image_bytes_encoding_size(&new_image) {
-            break;
-        }
-        // TODO: Why is this needed?
-        if i % width as u64 == 0 {
-            x_pos += 1;
-        }
-        x_pos = (x_pos + 19) % width;
-        y_pos = (y_pos + 29) % height;
-
-        let maybe_pixel =
-            message_bit_vec
-                .get(i as usize)
-                .map(|bit| if bit { Luma([255]) } else { Luma([0]) });
-
-        if let Some(pixel) = maybe_pixel {
-            new_image.put_pixel(x_pos, y_pos, pixel);
-        } else {
-            break;
-        }
-    }
-    new_image.save("code.bmp").unwrap();
-
-    println!(
-        "{:?}",
-        String::from_utf8_lossy(&decode(
-            &ImageReader::open("code.bmp")?.decode()?.to_luma8(),
-            2
-        ))
+    let data = coder.encode(
+        &text.as_bytes().to_vec(),
+        &probabilities,
+        encoding_capacity,
+        freedom_bit_count,
     );
+    let encoded_image = ModuloTraversingEncoder::encode_into_image(image.dimensions(), &data);
+    encoded_image.save("code.bmp").unwrap();
+
+    let image_with_data = ImageReader::open("code.bmp")?.decode()?.to_luma8();
+    let raw_data = ModuloTraversingEncoder::decode_from_image(&image_with_data);
+    let decoded_message = coder.decode(&raw_data, encoding_capacity, freedom_bit_count);
+
+    println!("{:?}", String::from_utf8_lossy(&decoded_message));
 
     Ok(())
 }
