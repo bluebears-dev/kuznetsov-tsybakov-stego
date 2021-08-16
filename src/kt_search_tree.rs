@@ -2,7 +2,6 @@ use std::usize;
 
 use bit_vec::{BitVec, Iter};
 
-
 use crate::encoder::KTEncoder;
 
 pub struct Config {
@@ -36,7 +35,7 @@ impl SearchTree {
             encoded_message.push(last_node.encoded_byte);
             println!("{:?}", last_node);
             let mut maybe_node = Some(&last_node);
-            
+
             for _ in 1..self.config.encoding_capacity {
                 maybe_node = maybe_node
                     .map(|node| node.parent_index)
@@ -52,7 +51,7 @@ impl SearchTree {
             }
             encoded_message.reverse();
         }
-
+        println!("{:?}", encoded_message.len());
         encoded_message
     }
 
@@ -71,7 +70,7 @@ impl SearchTree {
 
             // Store `8 - freedom_bit_count` in MS positions in `bits_to_encode`
             let mut bits_to_encode = 0;
-            for i in freedom_bit_count..8 {
+            for i in (freedom_bit_count..8).rev() {
                 if let Some(bit) = msg_bit_iterator.next().map(|val| (val as u8) << i) {
                     bits_to_encode += bit;
                 }

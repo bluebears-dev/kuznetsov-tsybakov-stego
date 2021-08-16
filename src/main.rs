@@ -6,6 +6,7 @@ extern crate image;
 
 use std::{error::Error, u32};
 
+use bit_vec::BitVec;
 use encoder::StandardKTEncoder;
 use image::{io::Reader as ImageReader, GenericImageView, GrayImage, ImageBuffer, Luma};
 use kt_search_tree::{Config, SearchTree};
@@ -62,10 +63,11 @@ fn decode(image: &GrayImage, freedom_bit_count: u8) -> Vec<u8> {
     let mut y_pos = 50;
     let mut current_bit = 0;
     let (width, height) = image.dimensions();
+    let encoding_capacity = get_image_bytes_encoding_size(&image);
 
-    let mut decoded = vec![0; get_image_bytes_encoding_size(image) as usize];
+    let mut decoded = BitVec::from_elem((encoding_capacity * 8) as usize, false);
 
-    let mut byte = 0;
+    let mut byte_bit_vec = BitVec::from_elem(8, false);
     let mut encoded_bit_pos = 0;
     for i in 0..(width * height) {
         // TODO: Why is this needed?
@@ -76,31 +78,31 @@ fn decode(image: &GrayImage, freedom_bit_count: u8) -> Vec<u8> {
         y_pos = (y_pos + 29) % height;
 
         if image.get_pixel(x_pos, y_pos).0[0] > 128 {
-            byte = byte | (1 << encoded_bit_pos);
+            byte_bit_vec.set(encoded_bit_pos, true);
         }
 
         encoded_bit_pos += 1;
 
         if encoded_bit_pos == 8 {
-            print!("{} ", byte);
+            let byte = byte_bit_vec.to_bytes()[0];
             let (decoded_byte, new_state) = decoder.decode(byte, state);
             state = new_state;
 
-            byte = 0;
+            byte_bit_vec.set_all();
+            byte_bit_vec.negate();
+
             encoded_bit_pos = 0;
 
             // TODO: Write remaining bits too
-            for i in freedom_bit_count..8 {
-                let byte_index = current_bit / 8;
-                let bit_index = current_bit % 8;
-                decoded[byte_index] =
-                    decoded[byte_index] | (((decoded_byte as u8 >> i) & 1) << bit_index);
+            let decoded_bit_vec = BitVec::from_bytes(&[decoded_byte]);
+            for i in 0..8 - freedom_bit_count {
+                decoded.set(current_bit, decoded_bit_vec.get(i.into()).unwrap());
                 current_bit += 1;
             }
         };
     }
 
-    decoded
+    decoded.to_bytes()
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -124,24 +126,30 @@ Electronics we use is usually based on the binary numeral system, which is perfe
 
     let mut x_pos = 50;
     let mut y_pos = 50;
-    let mut current_bit: usize = 0;
-    for i in 0..(width * height) {
-        if current_bit / 8 >= get_image_bytes_encoding_size(&new_image) as usize {
+
+    let message_bit_vec = BitVec::from_bytes(&encoded_seq);
+
+    for i in 0..(width * height) as u64 {
+        if i / 8 >= get_image_bytes_encoding_size(&new_image) {
             break;
         }
         // TODO: Why is this needed?
-        if i % width == 0 {
+        if i % width as u64 == 0 {
             x_pos += 1;
         }
         x_pos = (x_pos + 19) % width;
         y_pos = (y_pos + 29) % height;
-        let pixel = if (encoded_seq[current_bit / 8] & (1 << (current_bit % 8))) > 0 {
-            Luma([255])
+
+        let maybe_pixel =
+            message_bit_vec
+                .get(i as usize)
+                .map(|bit| if bit { Luma([255]) } else { Luma([0]) });
+
+        if let Some(pixel) = maybe_pixel {
+            new_image.put_pixel(x_pos, y_pos, pixel);
         } else {
-            Luma([0])
-        };
-        current_bit += 1;
-        new_image.put_pixel(x_pos, y_pos, pixel);
+            break;
+        }
     }
     new_image.save("code.bmp").unwrap();
 
