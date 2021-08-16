@@ -4,10 +4,12 @@ use bit_vec::{BitVec, Iter};
 
 use crate::encoder::KTEncoder;
 
+pub type ByteEncodingCapacity = u64;
+
 pub struct Config {
     pub freedom_bit_count: u8,
     pub probabilities: Vec<f32>,
-    pub encoding_capacity: u64,
+    pub encoding_capacity: ByteEncodingCapacity,
     pub encoding_method: Box<dyn KTEncoder>,
 }
 
