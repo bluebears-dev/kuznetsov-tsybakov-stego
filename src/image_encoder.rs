@@ -1,4 +1,5 @@
 pub mod modulo_traversing_encoder;
+pub mod random_traversing_encoder;
 
 use bitvec::prelude::*;
 use image::{GrayImage, ImageBuffer, Luma};
@@ -6,10 +7,10 @@ use image::{GrayImage, ImageBuffer, Luma};
 use crate::encoder::ByteEncodingCapacity;
 
 pub trait ImageEncoder {
-    fn get_next_pixel_pos(pos: (u32, u32), dimension: (u32, u32), index: u64)
+    fn get_next_pixel_pos(&self, pos: (u32, u32), dimension: (u32, u32), index: usize)
         -> Option<(u32, u32)>;
 
-    fn decode_from_image(image: &GrayImage) -> Vec<u8> {
+    fn decode_from_image(&self, image: &GrayImage) -> Vec<u8> {
         let mut x_pos = 50;
         let mut y_pos = 50;
 
@@ -21,8 +22,8 @@ pub trait ImageEncoder {
         let mut fetched_bits = bitvec![Lsb0, u8; 0; (encoding_capacity * 8) as usize];
 
         let mut encoded_bit_pos = 0;
-        for i in 0..(width * height) as u64 {
-            if let Some((x, y)) = Self::get_next_pixel_pos((x_pos, y_pos), dimensions, i) {
+        for i in 0..(width * height) as usize  {
+            if let Some((x, y)) = self.get_next_pixel_pos((x_pos, y_pos), dimensions, i) {
                 x_pos = x;
                 y_pos = y;
 
@@ -38,7 +39,7 @@ pub trait ImageEncoder {
         fetched_bits.into()
     }
 
-    fn encode_into_image((width, height): (u32, u32), data: &Vec<u8>) -> GrayImage {
+    fn encode_into_image(&self, (width, height): (u32, u32), data: &Vec<u8>) -> GrayImage {
         let mut new_image: GrayImage = ImageBuffer::new(width, height);
         let dimension = new_image.dimensions();
 
@@ -47,8 +48,8 @@ pub trait ImageEncoder {
 
         let data_bit_vec = data.view_bits::<Lsb0>();
 
-        for i in 0..(width * height) as u64 {
-            if let Some((x, y)) = Self::get_next_pixel_pos((x_pos, y_pos), dimension, i) {
+        for i in 0..(width * height) as usize {
+            if let Some((x, y)) = self.get_next_pixel_pos((x_pos, y_pos), dimension, i) {
                 x_pos = x;
                 y_pos = y;
 
@@ -70,15 +71,15 @@ pub trait ImageEncoder {
         new_image
     }
 
-    fn get_probabilities(image: &GrayImage, x_start: u32, y_start: u32) -> Vec<f32> {
+    fn get_probabilities(&self, image: &GrayImage, x_start: u32, y_start: u32) -> Vec<f32> {
         let dimensions = image.dimensions();
         let (width, height) = dimensions;
         let mut probabilities = vec![0.0; 10 + (width * height) as usize];
 
         let mut x_pos = x_start;
         let mut y_pos = y_start;
-        for i in 0..(width * height) as u64 {
-            if let Some((x, y)) = Self::get_next_pixel_pos((x_pos, y_pos), dimensions, i) {
+        for i in 0..(width * height) as usize  {
+            if let Some((x, y)) = self.get_next_pixel_pos((x_pos, y_pos), dimensions, i) {
                 x_pos = x;
                 y_pos = y;
 
