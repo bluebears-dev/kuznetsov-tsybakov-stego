@@ -17,20 +17,11 @@ fn bucket_get_pixel(bit: bool, original_pixel: &Luma<u8>) -> Luma<u8> {
     
     if bit != bucket_get_bit(original_pixel) {
         if bucket_index == 0 {
-            if bucket_get_bit(&Luma([(bucket_index + 1) * BUCKET_SIZE])) == bucket_get_bit(original_pixel) {
-                panic!("Should be equal");
-            };
             Luma([BUCKET_SIZE])
         } else {
-            if bucket_get_bit(&Luma([bucket_index * BUCKET_SIZE - 1])) == bucket_get_bit(original_pixel) {
-                panic!("Should be equal");
-            };
             Luma([bucket_index * BUCKET_SIZE - 1])
         }
     } else {
-        if bucket_get_bit(&Luma([bucket_index * BUCKET_SIZE + 1])) != bucket_get_bit(original_pixel) {
-            panic!("Should be equal");
-        };
         Luma([bucket_index * BUCKET_SIZE + 1])
     }
 }
