@@ -6,6 +6,36 @@ use image::{GrayImage, ImageBuffer, Luma};
 
 use crate::encoder::ByteEncodingCapacity;
 
+const BUCKET_SIZE: u8 = 4;
+
+fn bucket_get_bit(pixel: &Luma<u8>) -> bool {
+    (pixel.0[0] / BUCKET_SIZE) % 2 == 1
+}
+
+fn bucket_get_pixel(bit: bool, original_pixel: &Luma<u8>) -> Luma<u8> {
+    let bucket_index = original_pixel.0[0] / BUCKET_SIZE;
+    
+    if bit != bucket_get_bit(original_pixel) {
+        if bucket_index == 0 {
+            if bucket_get_bit(&Luma([(bucket_index + 1) * BUCKET_SIZE])) == bucket_get_bit(original_pixel) {
+                panic!("Should be equal");
+            };
+            Luma([BUCKET_SIZE])
+        } else {
+            if bucket_get_bit(&Luma([bucket_index * BUCKET_SIZE - 1])) == bucket_get_bit(original_pixel) {
+                panic!("Should be equal");
+            };
+            Luma([bucket_index * BUCKET_SIZE - 1])
+        }
+    } else {
+        if bucket_get_bit(&Luma([bucket_index * BUCKET_SIZE + 1])) != bucket_get_bit(original_pixel) {
+            panic!("Should be equal");
+        };
+        Luma([bucket_index * BUCKET_SIZE + 1])
+    }
+}
+
+
 pub trait ImageEncoder {
     fn get_next_pixel_pos(
         &self,
@@ -23,7 +53,7 @@ pub trait ImageEncoder {
 
         let encoding_capacity = get_image_encoding_capacity(&image);
 
-        let mut fetched_bits = bitvec![Lsb0, u8; 0; (encoding_capacity * 8) as usize];
+        let mut fetched_bits = bitvec![Lsb0, u8; 0; (width * height) as usize];
 
         let mut encoded_bit_pos = 0;
         for i in 0..(width * height) as usize {
@@ -31,9 +61,7 @@ pub trait ImageEncoder {
                 x_pos = x;
                 y_pos = y;
 
-                if image.get_pixel(x_pos, y_pos).0[0] >= 128 {
-                    fetched_bits.set(encoded_bit_pos, true);
-                }
+                fetched_bits.set(encoded_bit_pos, bucket_get_bit(image.get_pixel(x_pos, y_pos)));
                 encoded_bit_pos += 1;
             } else {
                 break;
@@ -62,14 +90,7 @@ pub trait ImageEncoder {
                     data_bit_vec
                         .get(i as usize)
                         .map(|bit| {
-                            let value = image.get_pixel(x_pos, y_pos).0[0];
-
-                            match *bit {
-                                true if value >= 128 => Luma([value]),
-                                true => Luma([129]),
-                                false if value < 128 => Luma([value]),
-                                false => Luma([127])
-                            }
+                            bucket_get_pixel(*bit, image.get_pixel(x_pos, y_pos))
                         });
 
                 if let Some(pixel) = maybe_pixel {
