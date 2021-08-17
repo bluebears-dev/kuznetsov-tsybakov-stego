@@ -7,8 +7,12 @@ use image::{GrayImage, ImageBuffer, Luma};
 use crate::encoder::ByteEncodingCapacity;
 
 pub trait ImageEncoder {
-    fn get_next_pixel_pos(&self, pos: (u32, u32), dimension: (u32, u32), index: usize)
-        -> Option<(u32, u32)>;
+    fn get_next_pixel_pos(
+        &self,
+        pos: (u32, u32),
+        dimension: (u32, u32),
+        index: usize,
+    ) -> Option<(u32, u32)>;
 
     fn decode_from_image(&self, image: &GrayImage) -> Vec<u8> {
         let mut x_pos = 50;
@@ -22,12 +26,12 @@ pub trait ImageEncoder {
         let mut fetched_bits = bitvec![Lsb0, u8; 0; (encoding_capacity * 8) as usize];
 
         let mut encoded_bit_pos = 0;
-        for i in 0..(width * height) as usize  {
+        for i in 0..(width * height) as usize {
             if let Some((x, y)) = self.get_next_pixel_pos((x_pos, y_pos), dimensions, i) {
                 x_pos = x;
                 y_pos = y;
 
-                if image.get_pixel(x_pos, y_pos).0[0] > 128 {
+                if image.get_pixel(x_pos, y_pos).0[0] >= 128 {
                     fetched_bits.set(encoded_bit_pos, true);
                 }
                 encoded_bit_pos += 1;
@@ -39,9 +43,10 @@ pub trait ImageEncoder {
         fetched_bits.into()
     }
 
-    fn encode_into_image(&self, (width, height): (u32, u32), data: &Vec<u8>) -> GrayImage {
-        let mut new_image: GrayImage = ImageBuffer::new(width, height);
+    fn encode_into_image(&self, image: &GrayImage, data: &Vec<u8>) -> GrayImage {
+        let mut new_image: GrayImage = ImageBuffer::new(image.width(), image.height());
         let dimension = new_image.dimensions();
+        let (width, height) = dimension;
 
         let mut x_pos = 50;
         let mut y_pos = 50;
@@ -56,7 +61,16 @@ pub trait ImageEncoder {
                 let maybe_pixel =
                     data_bit_vec
                         .get(i as usize)
-                        .map(|bit| if *bit { Luma([255]) } else { Luma([0]) });
+                        .map(|bit| {
+                            let value = image.get_pixel(x_pos, y_pos).0[0];
+
+                            match *bit {
+                                true if value >= 128 => Luma([value]),
+                                true => Luma([129]),
+                                false if value < 128 => Luma([value]),
+                                false => Luma([127])
+                            }
+                        });
 
                 if let Some(pixel) = maybe_pixel {
                     new_image.put_pixel(x_pos, y_pos, pixel);
@@ -78,7 +92,7 @@ pub trait ImageEncoder {
 
         let mut x_pos = x_start;
         let mut y_pos = y_start;
-        for i in 0..(width * height) as usize  {
+        for i in 0..(width * height) as usize {
             if let Some((x, y)) = self.get_next_pixel_pos((x_pos, y_pos), dimensions, i) {
                 x_pos = x;
                 y_pos = y;

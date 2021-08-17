@@ -13,7 +13,7 @@ use image_encoder::ImageEncoder;
 use crate::image_encoder::{get_image_encoding_capacity, modulo_traversing_encoder::ModuloTraversingEncoder, random_traversing_encoder::RandomTraversingEncoder};
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let image = ImageReader::open("picture-big.png")?.decode()?;
+    let image = ImageReader::open("picture.png")?.decode()?;
     let text = r#"twoja stara
     Imagine a basic situation: we have a source of symbols of known probability distribution and we would like to design an entropy coder transforming it into a bit sequence, which would be simple and very close to the capacity (Shannon entropy). Prefix codes are the basic method, defining "symbol$\rightarrow$bit sequence" set of rules, usually found using Huffman algorithm. They theoretically allow to reduce the distance from the capacity ($\Delta H$) down to zero, but the cost grows rapidly. We will discuss improving it by replacing this memoryless coder with an automate having some small set of internal states: defined by "(symbol, state)$\rightarrow$(bit sequence, new state)" set of rules. The natural question is the minimal number of states to achieve given performance, what is especially important for simple high throughput hardware coders. Arithmetic coding can be seen this way, but it requires relatively large number of states (possible ranges). We will discuss asymmetric numeral systems (ANS) for this purpose, which can be seen as asymmetrization of numeral systems. Less than 20 states will be usually sufficient to achieve $\Delta H\approx 0.001$ bits/symbol for a small alphabet. $\Delta H$ generally decreases approximately like 1/(the number of states$)^{2}$ and increases proportionally to the size of alphabet. Huge freedom of choosing the exact coding and chaotic behavior of state make it also perfect to simultaneously encrypt the data.
 \end{abstract}
@@ -28,7 +28,8 @@ Electronics we use is usually based on the binary numeral system, which is perfe
     let gray_image = &image.to_luma8();
     let freedom_bit_count = 2;
     let encoding_capacity = get_image_encoding_capacity(gray_image);
-    let image_encoder = RandomTraversingEncoder::new((encoding_capacity * 8) as usize, 13371);
+    // let image_encoder = RandomTraversingEncoder::new((encoding_capacity * 8) as usize, 13371);
+    let image_encoder = ModuloTraversingEncoder {};
     let probabilities = image_encoder.get_probabilities(gray_image, 50, 50);
     let coder = StandardKTEncoder::new(5);
 
@@ -38,7 +39,7 @@ Electronics we use is usually based on the binary numeral system, which is perfe
         encoding_capacity,
         freedom_bit_count,
     );
-    let encoded_image = image_encoder.encode_into_image(image.dimensions(), &data);
+    let encoded_image = image_encoder.encode_into_image(&gray_image, &data);
     encoded_image.save("code.bmp").unwrap();
 
     let image_with_data = ImageReader::open("code.bmp")?.decode()?.to_luma8();
