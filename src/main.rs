@@ -20,7 +20,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let encoding_capacity = get_image_encoding_capacity(gray_image);
     println!("Image and data loaded");
     // let image_encoder = RandomTraversingEncoder::new((encoding_capacity * 8) as usize, 13371);
-    let image_encoder = RandomTraversingEncoder::new(gray_image.len(), 5);
+    let image_encoder = RandomTraversingEncoder::new(gray_image.len(), 10);
     let probabilities = image_encoder.get_probabilities(gray_image, 50, 50);
     let coder = StandardKTEncoder::new(5);
     println!("Encoder ready");
