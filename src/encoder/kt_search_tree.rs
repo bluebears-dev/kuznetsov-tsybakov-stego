@@ -57,7 +57,10 @@ impl<'a> SearchTree<'a> {
         encoded_message
     }
 
-    fn construct_search_tree_approx(&mut self, msg_bit_iterator: &mut Iter<Lsb0, u8>) -> Option<SearchNode> {
+    fn construct_search_tree_approx(
+        &mut self,
+        msg_bit_iterator: &mut Iter<u8, Lsb0>,
+    ) -> Option<SearchNode> {
         let encoding_capacity = self.config.encoding_capacity;
         let freedom_bit_count = self.config.freedom_bit_count;
 

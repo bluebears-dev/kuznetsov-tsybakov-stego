@@ -115,8 +115,8 @@ impl KTEncoder for StandardKTEncoder {
         encoding_capacity: ByteEncodingCapacity,
         freedom_bit_count: u8,
     ) -> Vec<u8> {
-        let bit_capacity = encoding_capacity as usize * 8 ;
-        let mut message_bits: BitVec<Lsb0, u8> = bitvec![Lsb0, u8; 0; bit_capacity];
+        let bit_capacity = encoding_capacity as usize * 8;
+        let mut message_bits: BitVec<u8, Lsb0> = bitvec![u8, Lsb0; 0; bit_capacity];
 
         let mut state = 0;
         let mut bit_position: usize = 0;
@@ -132,7 +132,7 @@ impl KTEncoder for StandardKTEncoder {
                 message_bits.set(bit_position, decoded_bits[i as usize]);
                 bit_position += 1;
             }
-        };
+        }
 
         message_bits.into()
     }

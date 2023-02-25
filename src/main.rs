@@ -3,17 +3,23 @@ mod image_encoder;
 
 extern crate image;
 
-use std::{error::Error, fs::{self, File}};
+use std::{
+    error::Error,
+    fs::{self, File},
+};
 
 use encoder::{KTEncoder, StandardKTEncoder};
 use image::{io::Reader as ImageReader, GenericImageView};
 
 use image_encoder::ImageEncoder;
 
-use crate::image_encoder::{get_image_encoding_capacity, modulo_traversing_encoder::ModuloTraversingEncoder, random_traversing_encoder::RandomTraversingEncoder};
+use crate::image_encoder::{
+    get_image_encoding_capacity, modulo_traversing_encoder::ModuloTraversingEncoder,
+    random_traversing_encoder::RandomTraversingEncoder,
+};
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let image = ImageReader::open("Cockatiel-horiz.jpg")?.decode()?;
+    let image = ImageReader::open("borzoi.jpg")?.decode()?;
     let text = fs::read_to_string("data")?;
     let gray_image = &image.to_luma8();
     let freedom_bit_count = 2;

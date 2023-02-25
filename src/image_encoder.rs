@@ -26,7 +26,6 @@ fn bucket_get_pixel(bit: bool, original_pixel: &Luma<u8>) -> Luma<u8> {
     }
 }
 
-
 pub trait ImageEncoder {
     fn get_next_pixel_pos(
         &self,
@@ -41,7 +40,7 @@ pub trait ImageEncoder {
 
         let dimensions = image.dimensions();
 
-        let mut fetched_bits = bitvec![Lsb0, u8; 0; image.len() as usize];
+        let mut fetched_bits = bitvec![u8, Lsb0; 0; image.len() as usize];
 
         let mut encoded_bit_pos = 0;
         for i in 0..image.len() as usize {
@@ -49,10 +48,13 @@ pub trait ImageEncoder {
                 x_pos = x;
                 y_pos = y;
             } else {
-                break
+                break;
             }
 
-            fetched_bits.set(encoded_bit_pos, bucket_get_bit(image.get_pixel(x_pos, y_pos)));
+            fetched_bits.set(
+                encoded_bit_pos,
+                bucket_get_bit(image.get_pixel(x_pos, y_pos)),
+            );
             encoded_bit_pos += 1;
         }
 
@@ -73,15 +75,12 @@ pub trait ImageEncoder {
                 x_pos = x;
                 y_pos = y;
             } else {
-                break
+                break;
             }
 
-            let maybe_pixel =
-                data_bit_vec
-                    .get(i as usize)
-                    .map(|bit| {
-                        bucket_get_pixel(*bit, image.get_pixel(x_pos, y_pos))
-                    });
+            let maybe_pixel = data_bit_vec
+                .get(i as usize)
+                .map(|bit| bucket_get_pixel(*bit, image.get_pixel(x_pos, y_pos)));
 
             if let Some(pixel) = maybe_pixel {
                 new_image.put_pixel(x_pos, y_pos, pixel);
@@ -102,7 +101,7 @@ pub trait ImageEncoder {
                 x_pos = x;
                 y_pos = y;
             } else {
-                break
+                break;
             }
 
             let pixel = image.get_pixel(x_pos, y_pos);
