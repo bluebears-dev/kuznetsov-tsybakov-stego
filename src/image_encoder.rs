@@ -1,5 +1,6 @@
 pub mod modulo_traversing_encoder;
 pub mod random_traversing_encoder;
+use num_traits::One;
 
 use bitvec::prelude::*;
 use image::{GrayImage, ImageBuffer, Luma};
@@ -9,21 +10,11 @@ use crate::encoder::ByteEncodingCapacity;
 const BUCKET_SIZE: u8 = 2;
 
 fn bucket_get_bit(pixel: &Luma<u8>) -> bool {
-    (pixel.0[0] / BUCKET_SIZE) % 2 == 1
+    (pixel.0[0] & u8::one()) != 0
 }
 
 fn bucket_get_pixel(bit: bool, original_pixel: &Luma<u8>) -> Luma<u8> {
-    let bucket_index = original_pixel.0[0] / BUCKET_SIZE;
-
-    if bit != bucket_get_bit(original_pixel) {
-        if bucket_index == 0 {
-            Luma([BUCKET_SIZE])
-        } else {
-            Luma([(bucket_index * BUCKET_SIZE) - 1])
-        }
-    } else {
-        Luma([(bucket_index * BUCKET_SIZE) + 1])
-    }
+    Luma([(original_pixel.0[0] & (u8::MAX - 1)) + (bit as u8)])
 }
 
 pub trait ImageEncoder {
